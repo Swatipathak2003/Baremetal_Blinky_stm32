@@ -59,7 +59,7 @@ Demonstrates LED blinking on the **STM32F401CCU6 (Black Pill)** using bare-metal
 
 | LED OFF | LED ON |
 |:-------:|:------:|
-| ![LED OFF](images/led_off.jpeg) | ![LED ON](images/led_on.jpeg) |
+| ![LED OFF](led_off.jpeg) | ![LED ON](led_on.jpeg) |
 
 ---
 
