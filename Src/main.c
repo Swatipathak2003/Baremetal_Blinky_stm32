@@ -36,40 +36,62 @@
 
 #include <stdint.h>
 
+
+typedef struct{
+	volatile uint32_t RCC_CR;
+	volatile uint32_t RCC_PLLCFGR;
+	volatile uint32_t RCC_CFGR;
+	volatile uint32_t RCC_CIR;
+	volatile uint32_t RCC_AHB1RSTR;
+	volatile uint32_t RCC_AHB2RSTR;
+	uint32_t reserved0[2];
+	volatile uint32_t RCC_APB1RSTR;
+	volatile uint32_t RCC_APB2RSTR;
+	uint32_t reserved1[2];
+	volatile uint32_t RCC_AHB1ENR;
+	volatile uint32_t RCC_AHB2ENR;
+	uint32_t reserved2[2];
+	volatile uint32_t RCC_APB1ENR;
+	volatile uint32_t RCC_APB2ENR;
+
+}RCC_REG;
+
+typedef struct{
+	volatile uint32_t GPIO_MODER;
+	volatile uint32_t GPIO_OTYPER;
+	volatile uint32_t GPIO_OSPEEDR;
+	volatile uint32_t GPIO_PUPDR;
+	volatile uint32_t GPIO_IDR;
+	volatile uint32_t GPIO_ODR;
+	volatile uint32_t GPIO_BSRR;
+}GPIO_REG;
+
 //Rcc base register address
-#define RCC_BASE      0x40023800
+#define RCC     ((RCC_REG*) 0x40023800)
 //address of general purpose clock enabling
-#define RCC_AHB1ENR   (*(volatile uint32_t *)(RCC_BASE + 0x30))
 //gpio port c base address
-#define GPIOC_BASE    0x40020800
-#define GPIOA_BASE    0x40020000
-//moder register address to set the pin as input or output
-#define GPIOC_MODER   (*(volatile uint32_t *)(GPIOC_BASE + 0x00))
-#define GPIOA_MODER   (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
-//output data register to write to the port pin
-#define GPIOC_ODR     (*(volatile uint32_t *)(GPIOC_BASE + 0x14))
-#define GPIOA_IDR     (*(volatile uint32_t *)(GPIOA_BASE + 0x10))
-#define GPIOA_PUPDR   (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
+#define GPIOC    ((GPIO_REG*)0x40020800)
+#define GPIOA    ((GPIO_REG*)0x40020000)
 //main start
 int main(void) {
     // first enable the clock for port c (to wake the controller)
-    RCC_AHB1ENR |= (1 << 2)|(1<<0);
+    RCC->RCC_AHB1ENR |= (1 << 2)|(1<<0);
 //to set the port c pin 13 as ouput we need to write 01 to bit 27&26 as each pin takes two bit
-    GPIOC_MODER &= ~(3 << 26); // first clear the bit 26 and 27
-    GPIOC_MODER |=  (1 << 26); // Setting bit 26 and 27 to 10
-    GPIOA_MODER&= ~(3<<0);//setting PA0 as input by writing 00 to bit 0&1
-    GPIOA_PUPDR&= ~(3<<0);//writing 01 to bit 1&0 to do internal PULLUP on pin PA0
-    GPIOA_PUPDR|= (1<<0);
+    GPIOC->GPIO_MODER &= ~(3 << 26); // first clear the bit 26 and 27
+    GPIOC->GPIO_MODER |=  (1 << 26); // Setting bit 26 and 27 to 10
+    GPIOA->GPIO_MODER&= ~(3<<0);//setting PA0 as input by writing 00 to bit 0&1
+    GPIOA->GPIO_PUPDR&= ~(3<<0);//writing 01 to bit 1&0 to do internal PULLUP on pin PA0
+    GPIOA->GPIO_PUPDR|= (1<<0);
     //infinite loop
     while(1) {
        //check the state of PA0 if low turn led on
-    	if((GPIOA_IDR&(1<<0))==0){
+    	if((GPIOA->GPIO_IDR&(1<<0))==0){
     		 //toggle the led state using xor operator
     		 //if led state is 1 xor will nake it 0 and if state is zero xor will make it 1
-    		GPIOC_ODR &= ~(1 << 13);//set pin 13 to 0 to turn led on as on board led is anode is connected to 3.3v and cathode is connected to gpio.so to turn led o gpio 13 should be low
+    		GPIOC->GPIO_ODR &= ~(1 << 13);//set pin 13 to 0 to turn led on as on board led is anode is connected to 3.3v and cathode is connected to gpio.so to turn led o gpio 13 should be low
     	}
     	else{
-    		GPIOC_ODR|= (1<<13);//set GPIO 13 high to keep led off when no button pressed;
+    		GPIOC->GPIO_ODR|= (1<<13);//set GPIO 13 high to keep led off when no button pressed;
     	}
     }
 }
