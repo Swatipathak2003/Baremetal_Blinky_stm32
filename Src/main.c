@@ -54,7 +54,6 @@
 
 #include <stdint.h>
 
-
 typedef struct{
 	volatile uint32_t RCC_CR;
 	volatile uint32_t RCC_PLLCFGR;
@@ -72,7 +71,7 @@ typedef struct{
 	volatile uint32_t RCC_APB1ENR;
 	volatile uint32_t RCC_APB2ENR;
 
-}RCC_REG;
+}RCC_REG;//STRUCT for RCC register mapping
 
 typedef struct{
 	volatile uint32_t GPIO_MODER;
@@ -82,7 +81,28 @@ typedef struct{
 	volatile uint32_t GPIO_IDR;
 	volatile uint32_t GPIO_ODR;
 	volatile uint32_t GPIO_BSRR;
-}GPIO_REG;
+	volatile uint32_t GPIO_LCKR;
+	volatile uint32_t GPIO_AFRL;
+	volatile uint32_t GPIO_AFRH;
+}GPIO_REG;//STRUCT for GPIO register mapping
+
+typedef struct {
+	volatile uint32_t SYSCFG_MEMRMP;
+	volatile uint32_t SYSCFG_PMC;
+	volatile uint32_t SYSCFG_EXTICR1;
+	volatile uint32_t SYSCFG_EXTICR2;
+	volatile uint32_t SYSCFG_EXTICR3;
+	volatile uint32_t SYSCFG_EXTICR4;
+}SYSCFG_REG;//STRUCT for System configuration register
+
+typedef struct {
+	volatile uint32_t EXTI_IMR;
+	volatile uint32_t EXTI_EMR;
+	volatile uint32_t EXTI_RTSR;
+	volatile uint32_t EXTI_FTSR;
+	volatile uint32_t EXTI_SWIER;
+	volatile uint32_t EXTI_PR;
+}EXTI_REG;//STRUCT for external interrupt control register
 
 typedef struct {
 	volatile uint32_t CR1;
@@ -96,73 +116,76 @@ typedef struct {
 	volatile uint32_t CNT;
 	volatile uint32_t PSC;
 	volatile uint32_t ARR;
+	volatile uint32_t reserverd0[1];
+	volatile uint32_t CCR[4];
 
 }TIM_REG;
 
-//Rcc base register address
-#define RCC     ((RCC_REG*) 0x40023800)
-//address of general purpose clock enabling
-//gpio port c base address
-#define GPIOC    ((GPIO_REG*)0x40020800)
-#define GPIOB    ((GPIO_REG*)0x400207FF)
-#define GPIOA    ((GPIO_REG*)0x40020000)
-#define TIM2     ((TIM_REG)*0x40000000)
-//function for delay in milli seconds
-void delay_ms(uint32_t t){
-	RCC->RCC_APB1RSTR|=(1<<0);//using TIM2
-	TIM2->PSC=16000-1;
-	TIM2->ARR=t-1;
-	TIM2->CNT=0;
-	TIM2->EGR|=(1<<0);
-	TIM2->SR&=~(1<<0);
-	TIM2->CR1|=(1<<0);
-	while((TIM2->SR&(1<<0)));
-	TIM2->CR1&=~(1<<0);
-	TIM2->SR&=~(1<<0);
+//defining the base address as a pointer to structure
+#define RCC          ((RCC_REG*) 0x40023800)
+#define GPIOA        ((GPIO_REG*)0x40020000)
+#define TIM2         ((TIM_REG*)0x40000000)
+#define TIM3         ((TIM_REG*)0x40000400)
+
+// function to run when interrupt is called(ISR performed by CPU on interrupt).EXTI0 is interrupt function for line 0 peripheral interrupt
+void EXTI0_IRQHandler(void){
+	if(EXTI->EXTI_PR&(1<<0)){
+		EXTI->EXTI_PR|=(1<<0);//writing 1 to pending register to reset it or in simple way to tell that we have configured the interrupt
+		GPIOC->GPIO_ODR^=(1<<13);//toggle the led
+	}
 }
-//function for microseconds delay
+
+
+void delay_ms(uint32_t t){
+	RCC->RCC_APB1ENR|=(1<<0);//using TIM2 so first we have to enable the clock for it
+	TIM2->PSC=16000-1;//1000 ticks per second(1 tick per ms). PRESCALER is the value with which we divide our internal clock frequency to reduce its speed
+	TIM2->ARR=t-1;//here t is the time of delay we want
+	TIM2->CNT=0;//setting count to 0;
+	TIM2->EGR|=(1<<0);//setting the update generation(UG) flag so ARR and PSC get reloaded instantly(force update)
+	TIM2->SR&= ~(1<<0);//clearing the status register update interrupt flag
+	TIM2->CR1|=(1<<0);//start the counting by setting CEN bit
+	while((TIM2->SR&(1<<0)));//run loop until hardware sets the UIF bit of status register
+	TIM2->CR1&=~(1<<0);//stopping the counting
+	TIM2->SR&=~(1<<0);//clearing the UIF bit for next timer
+}
+
 void delay_microsec(uint32_t t){
-	RCC->RCC_APB1RSTR|=(1<<0);//using TIM2
-	TIM2->PSC=16-1;
-	TIM2->ARR=t-1;
-	TIM2->CNT=0;
-	TIM2->EGR|=(1<<0);
-	TIM2->SR&=~(1<<0);
-	TIM2->CR1|=(1<<0);
-	while((TIM2->SR&(1<<0)));
-	TIM2->CR1&=~(1<<0);
-	TIM2->SR&=~(1<<0);
+	RCC->RCC_APB1ENR|=(1<<0);//using TIM2 so first we have to enable the clock for it
+	TIM2->PSC=16-1;//1000000 ticks per second(1 tick per us). PRESCALER is the value with which we divide our internal clock frequency to reduce its speed
+	TIM2->ARR=t-1;//here t is the time of delay we want
+	TIM2->CNT=0;//setting count to 0;
+	TIM2->EGR|=(1<<0);//setting the update generation(UG) flag so ARR and PSC get reloaded instantly(force update)
+	TIM2->SR&= ~(1<<0);//clearing the status register update interrupt flag
+	TIM2->CR1|=(1<<0);//start the counting by setting CEN bit
+	while((TIM2->SR&(1<<0)));//run loop until hardware sets the UIF bit of status register
+	TIM2->CR1&=~(1<<0);//stopping the counting
+	TIM2->SR&=~(1<<0);//clearing the UIF bit for next timer
 }
 //main start
 int main(void) {
-    // first enable the clock for port c (to wake the controller)
-    RCC->RCC_AHB1ENR |= (1 << 2)|(1<<0);
-//to set the port c pin 13 as ouput we need to write 01 to bit 27&26 as each pin takes two bit
-    GPIOC->GPIO_MODER &= ~(3 << 26); // first clear the bit 26 and 27
-    GPIOC->GPIO_MODER |=  (1 << 26); // Setting bit 26 and 27 to 10
-    GPIOA->GPIO_MODER&= ~(3<<0);//setting PA0 as input by writing 00 to bit 0&1
-    GPIOA->GPIO_PUPDR&= ~(3<<0);//writing 01 to bit 1&0 to do internal PULLUP on pin PA0
-    GPIOA->GPIO_PUPDR|= (1<<0);
-    GPIOB->GPIO_MODER&=~(3<<10);
-    GPIOB->GPIO_MODER|=(1<<10);
+    //set up for GPIO
+    RCC->RCC_AHB1ENR|=(1<<0);//enabling clock for portA
+    RCC->RCC_APB1ENR|=(3<<1);//enabling clock for Tim2 and TIM3
+    GPIOA->GPIO_MODER&=~(3<<12);
+    GPIOA->GPIO_MODER|=(1<<13);//setting pin PA6 as alternate function mode
+    GPIOA->GPIO_AFRL&=0xF0FFFFFF;
+    GPIOA->GPIO_AFRL|=(2<<24);
+    TIM3->PSC=83;//1000000 ticks per second
+    TIM3->ARR=999;//1000 ticks per ms
+    TIM3->CNT=0;
+    TIM3->CCMR1&=~(7<<4);//clearing the pwm mode bits
+    TIM3->CCMR1|=(3<<5);//setting pwm mode 1
+    TIM3->CCMR1|=(1<<3);//etting channel 1 preload bit
+    TIM3->CCER|=(1<<0);//enabling the channel 1
+    TIM3->CR1|=(1<<0);//starting the count by setting count enable bit
+    TIM3->CCR[0]=250;//setting duty cuycle(25%)
+
     //infinite loop
     while(1) {
-       //check the state of PA0 if low turn led on
-    	if((GPIOA->GPIO_IDR&(1<<0))==0){
-    		 //toggle the led state using xor operator
-    		 //if led state is 1 xor will nake it 0 and if state is zero xor will make it 1
-    		GPIOC->GPIO_ODR &= ~(1 << 13);//set pin 13 to 0 to turn led on as on board led is anode is connected to 3.3v and cathode is connected to gpio.so to turn led o gpio 13 should be low
-    	}
-    	else{
-    		GPIOC->GPIO_ODR|= (1<<13);//set GPIO 13 high to keep led off when no button pressed;
-    	}
+    	//in order to get half seconds delay we will pass 250 (as 500 ticks in 1 seconds so 250 tick in half seconds)
 
-    	//toggling external led on pin PB05
-    	GPIOB->GPIO_ODR|=(1<<5);
-    	delay_ms(500);//500 ms delay
-    	GPIOB->GPIO_ODR&=~(1<<5);
-    	delay_microsec(500);//500 us delay
-
+//    	delay_ms(500);//500 ms delay
+     //lets suppose CPU is executing its task in loop
     }
 }
 
