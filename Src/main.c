@@ -53,6 +53,7 @@
  */
 
 #include <stdint.h>
+#include<stdio.h>
 
 typedef struct{
 	volatile uint32_t RCC_CR;
@@ -121,19 +122,23 @@ typedef struct {
 
 }TIM_REG;
 
+typedef struct{
+	volatile uint32_t SR;
+	volatile uint32_t DR;
+	volatile uint32_t BRR;
+	volatile uint32_t CR1;
+	volatile uint32_t CR2;
+	volatile uint32_t CR3;
+	volatile uint32_t GTPR;
+}USART_REG;
+
 //defining the base address as a pointer to structure
 #define RCC          ((RCC_REG*) 0x40023800)
 #define GPIOA        ((GPIO_REG*)0x40020000)
+#define GPIOC        ((GPIO_REG*)0x40020800)
 #define TIM2         ((TIM_REG*)0x40000000)
 #define TIM3         ((TIM_REG*)0x40000400)
-
-// function to run when interrupt is called(ISR performed by CPU on interrupt).EXTI0 is interrupt function for line 0 peripheral interrupt
-void EXTI0_IRQHandler(void){
-	if(EXTI->EXTI_PR&(1<<0)){
-		EXTI->EXTI_PR|=(1<<0);//writing 1 to pending register to reset it or in simple way to tell that we have configured the interrupt
-		GPIOC->GPIO_ODR^=(1<<13);//toggle the led
-	}
-}
+#define USART1       ((USART_REG*)0x40011000)
 
 
 void delay_ms(uint32_t t){
@@ -161,11 +166,32 @@ void delay_microsec(uint32_t t){
 	TIM2->CR1&=~(1<<0);//stopping the counting
 	TIM2->SR&=~(1<<0);//clearing the UIF bit for next timer
 }
+
+
+void UART_WRITE(char ch){
+	while(!((USART1->SR)&(1<<7))){
+
+	}//wait till the TXE pin is low
+		GPIOC->GPIO_ODR&=~(1<<13);
+		 for(int i=0; i<100000; i++);
+		USART1->DR=ch;//write after txe is turned high
+		GPIOC->GPIO_ODR|=(1<<13);
+		 for(int i=0; i<100000; i++);
+}
+void print(char* str){
+	int i=0;
+	while(str[i]){
+		UART_WRITE(str[i++]);
+	}
+}
 //main start
 int main(void) {
     //set up for GPIO
-    RCC->RCC_AHB1ENR|=(1<<0);//enabling clock for portA
+    RCC->RCC_AHB1ENR|=(1<<0)|(1<<2);//enabling clock for portA
+    RCC->RCC_APB2ENR|=(1<<4);//enabling clock for uart1
     RCC->RCC_APB1ENR|=(3<<1);//enabling clock for Tim2 and TIM3
+    GPIOC->GPIO_MODER&=~(3<<26);//led for checking the serial data is transfered or not
+    GPIOC->GPIO_MODER|=(1<<26);
     GPIOA->GPIO_MODER&=~(3<<12);
     GPIOA->GPIO_MODER|=(1<<13);//setting pin PA6 as alternate function mode
     GPIOA->GPIO_AFRL&=0xF0FFFFFF;
@@ -180,10 +206,21 @@ int main(void) {
     TIM3->CR1|=(1<<0);//starting the count by setting count enable bit
     TIM3->CCR[0]=250;//setting duty cuycle(25%)
 
+    GPIOA->GPIO_MODER&=~(3<<18);//setting UART! pin PA9 and PA10 as alternate function
+    GPIOA->GPIO_MODER|=(2<<18);
+    GPIOA->GPIO_AFRH&=~(15<<4);//claring the line 9 of Alternate function high(line 8-15)register
+    GPIOA->GPIO_AFRH|=(7<<4);//setting value 7 as UART1 AFR maps to UART1 with value AF7;
+    USART1->BRR=0x8B;
+    USART1->CR1|=(1<<13)|(1<<3)|(1<<2);//setting UE, TE, RE bit
+
     //infinite loop
     while(1) {
     	//in order to get half seconds delay we will pass 250 (as 500 ticks in 1 seconds so 250 tick in half seconds)
-
+    	char buffer[50];
+//    	int mean_volt=(float)TIM3->CCR[0]/(TIM3->ARR+1)*3.3;
+    	sprintf(buffer,"The Intensity of led is %lu",TIM3->CCR[0]/1000);
+    	print(buffer);
+   	 for(int i=0; i<3000000; i++);
 //    	delay_ms(500);//500 ms delay
      //lets suppose CPU is executing its task in loop
     }

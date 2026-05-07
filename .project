@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Baremetal_Blinky</name>
+	<name>Baremetal_stm32_PWM</name>
 	<comment></comment>
 	<projects>
 	</projects>
